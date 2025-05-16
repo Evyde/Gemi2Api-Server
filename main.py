@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 import os
 import base64
 import tempfile
+import html
 
 from fastapi import FastAPI, HTTPException, Request, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
@@ -312,10 +313,22 @@ async def create_chat_completion(request: ChatCompletionRequest, api_key: str = 
 		else:
 			reply_text = str(response)
 
-		logger.info(f"Response: {reply_text}")
+		# Log raw response before unescaping
+		logger.info(f"Raw response from Gemini: {reply_text}")
 
-		if not reply_text or reply_text.strip() == "":
-			logger.warning("Empty response received from Gemini")
+		if reply_text and reply_text.strip(): # Check if there's something to unescape
+			# 第1步：处理 HTML 实体
+			reply_text = html.unescape(reply_text)
+			
+			# 第2步：处理特定的反斜杠转义
+			reply_text = reply_text.replace("\\<", "<")
+			reply_text = reply_text.replace("\\>", ">")
+			reply_text = reply_text.replace("\\_", "_")
+			
+			logger.info(f"Unescaped response: {reply_text}") # Log unescaped response
+		
+		if not reply_text or reply_text.strip() == "": # This check happens AFTER potential unescaping
+			logger.warning("Empty response received from Gemini (possibly after unescaping)")
 			reply_text = "服务器返回了空响应。请检查 Gemini API 凭据是否有效。"
 
 		# 创建响应对象
